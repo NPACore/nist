@@ -1,0 +1,93 @@
+ 1. Considering https://cloud.debian.org/images/cloud/'s [[https://cloud.debian.org/images/cloud/bookworm-backports/20250428-2096/debian-12-backports-genericcloud-amd64-20250428-2096.qcow2][debian-12-backports-genericcloud-amd64-20250428-2096.qcow2]] as a base VM.
+ 2. Trying to find a ansible playbook to reach NIST 800-171r3 compliance
+
+* Resources
+
+ * [[external_docs/]] - NIST docs
+ * https://github.com/RedHatOfficial/ansible-role-rhel7-cui (rhel7.9 c. 2020; EOL 7/2024, extend 6/2028)
+ * https://www.radamczyk.com/2023-10-27/Ubuntu-20-04-LTS-NIST-800-171-Configuration - tweaks to get to 800-171 with openSCAD on Ubuntu
+ * https://static.open-scap.org/ssg-guides/ssg-rhel9-guide-cui.html - rendered yaml (?) for current redhat stable
+
+* Ansible Image from OpenSCAP?
+
+#+begin_src bash :colnames '(file count) :results table :exports both
+# apt install sgg-debian/unstable
+cd /usr/share/scap-security-guide/ansible/
+grep -o NIST-800-171.* *debian12* |sort -u | cut -f 1 -d: | sort |uniq -c |sort -nr
+#+end_src
+
+#+RESULTS:
+| file | count                                           |
+|------+-------------------------------------------------|
+|   14 | debian12-playbook-anssi_bp28_high.yml           |
+|   14 | debian12-playbook-anssi_bp28_enhanced.yml       |
+|   12 | debian12-playbook-anssi_bp28_intermediary.yml   |
+|    9 | debian12-playbook-standard.yml                  |
+|    9 | debian12-playbook-anssi_np_nt28_restrictive.yml |
+|    9 | debian12-playbook-anssi_np_nt28_high.yml        |
+|    6 | debian12-playbook-anssi_np_nt28_average.yml     |
+|    2 | debian12-playbook-anssi_bp28_minimal.yml        |
+
+Which 14 ~NIST-800-171~ tags does "high" have?
+#+begin_src bash  :exports both
+grep -o NIST-800-171.* /usr/share/scap-security-guide/ansible/debian12-playbook-anssi_bp28_high.yml |sort -u |sort -V
+#+end_src
+
+#+RESULTS:
+| NIST-800-171-3.1.1   |
+| NIST-800-171-3.1.5   |
+| NIST-800-171-3.1.6   |
+| NIST-800-171-3.1.7   |
+| NIST-800-171-3.1.11  |
+| NIST-800-171-3.1.13  |
+| NIST-800-171-3.1.20  |
+| NIST-800-171-3.3.1   |
+| NIST-800-171-3.3.2   |
+| NIST-800-171-3.3.6   |
+| NIST-800-171-3.4.3   |
+| NIST-800-171-3.4.5   |
+| NIST-800-171-3.5.8   |
+| NIST-800-171-3.13.10 |
+
+But that's not all tags.
+
+#+begin_src bash  :exports both
+perl -MList::Util=uniq -MFile::Basename=basename -MSort::Versions=versioncmp -lne \
+ 'push @{$h{$&}}, (basename($ARGV) =~ s/.*playbook(-anssi)?[_-]|.yml//gr) if /NIST-800-171.*/;
+END{print "$_\t",
+          join(",", uniq @{$h{$_}},"\n")
+    for sort {versioncmp($a,$b)} keys(%h)}' \
+ /usr/share/scap-security-guide/ansible/*.yml
+#+end_src
+
+#+RESULTS:
+| NIST-800-171-3.1.1   | np_nt28_average,np_nt28_high,np_nt28_restrictive,standard,bp28_enhanced,bp28_high,bp28_intermediary,              |
+|                      |                                                                                                                   |
+| NIST-800-171-3.1.5   | np_nt28_average,np_nt28_high,np_nt28_restrictive,standard,bp28_enhanced,bp28_high,bp28_intermediary,              |
+|                      |                                                                                                                   |
+| NIST-800-171-3.1.6   | bp28_enhanced,bp28_high,bp28_intermediary,                                                                        |
+|                      |                                                                                                                   |
+| NIST-800-171-3.1.7   | np_nt28_average,np_nt28_high,np_nt28_restrictive,standard,bp28_enhanced,bp28_high,bp28_intermediary,              |
+|                      |                                                                                                                   |
+| NIST-800-171-3.1.11  | np_nt28_average,np_nt28_high,np_nt28_restrictive,standard,bp28_enhanced,bp28_high,bp28_intermediary,              |
+|                      |                                                                                                                   |
+| NIST-800-171-3.1.13  | np_nt28_average,np_nt28_high,np_nt28_restrictive,standard,bp28_enhanced,bp28_high,bp28_intermediary,bp28_minimal, |
+|                      |                                                                                                                   |
+| NIST-800-171-3.1.20  | bp28_enhanced,bp28_high,bp28_intermediary,                                                                        |
+|                      |                                                                                                                   |
+| NIST-800-171-3.3.1   | np_nt28_high,np_nt28_restrictive,standard,bp28_enhanced,bp28_high,bp28_intermediary,                              |
+|                      |                                                                                                                   |
+| NIST-800-171-3.3.2   | np_nt28_high,np_nt28_restrictive,standard,bp28_enhanced,bp28_high,bp28_intermediary,                              |
+|                      |                                                                                                                   |
+| NIST-800-171-3.3.6   | np_nt28_high,np_nt28_restrictive,standard,bp28_enhanced,bp28_high,bp28_intermediary,                              |
+|                      |                                                                                                                   |
+| NIST-800-171-3.4.3   | bp28_enhanced,bp28_high,                                                                                          |
+|                      |                                                                                                                   |
+| NIST-800-171-3.4.5   | bp28_enhanced,bp28_high,                                                                                          |
+|                      |                                                                                                                   |
+| NIST-800-171-3.5.4   | np_nt28_average,np_nt28_high,np_nt28_restrictive,standard,                                                        |
+|                      |                                                                                                                   |
+| NIST-800-171-3.5.8   | bp28_enhanced,bp28_high,bp28_intermediary,bp28_minimal,                                                           |
+|                      |                                                                                                                   |
+| NIST-800-171-3.13.10 | bp28_enhanced,bp28_high,bp28_intermediary,                                                                        |
+|                      |                                                                                                                   |
